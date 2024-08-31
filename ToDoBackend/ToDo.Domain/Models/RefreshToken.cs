@@ -11,11 +11,14 @@ namespace ToDo.Domain.Models
         public string? Token { get; set; }
 
         public DateTime ExpiresAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public bool IsRevoked { get; set; } 
 
         [ForeignKey("AppUser")]
         public string UserId { get; set; } = string.Empty;
+        public virtual AppUser User { get; set; } = default!;
 
-        public virtual AppUser AppUser { get; set; } = new AppUser();
+       
     }
 
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ToDo.Persistenece.Data;
 
@@ -11,9 +12,11 @@ using ToDo.Persistenece.Data;
 namespace ToDo.Persistenece.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20240831153816_AddedPropertiesToRefreshTokenModel")]
+    partial class AddedPropertiesToRefreshTokenModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -301,13 +304,13 @@ namespace ToDo.Persistenece.Migrations
 
             modelBuilder.Entity("ToDo.Domain.Models.RefreshToken", b =>
                 {
-                    b.HasOne("ToDo.Domain.Models.AppUser", "User")
+                    b.HasOne("ToDo.Domain.Models.AppUser", "AppUser")
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("ToDo.Domain.Models.AppUser", b =>

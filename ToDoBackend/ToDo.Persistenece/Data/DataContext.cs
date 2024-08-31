@@ -18,13 +18,12 @@ namespace ToDo.Persistenece.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
             
             modelBuilder.Entity<RefreshToken>()
-                .HasOne(rt => rt.AppUser)
-                .WithMany(u => u.RefreshTokens)
-                .HasForeignKey(rt => rt.UserId);
-
-            base.OnModelCreating(modelBuilder);
+                .HasOne(rt => rt.User)
+                .WithMany(ap => ap.RefreshTokens)
+                .OnDelete(DeleteBehavior.Restrict);
         }
             
         public DbSet<RefreshToken> RefreshTokens { get; set;}

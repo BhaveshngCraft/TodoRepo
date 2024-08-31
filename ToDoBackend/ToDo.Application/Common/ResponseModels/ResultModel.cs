@@ -28,18 +28,18 @@ namespace ToDo.Application.Common.ResponseModels
 
     public class ResultModel
     {
-        public bool Success { get; set; }
+        public bool Status { get; set; }
         public string Message { get; set; } = string.Empty;
        
 
         public static ResultModel SuccessResult(string message)
         {
-            return new ResultModel { Success = true, Message = message };
+            return new ResultModel { Status = true, Message = message };
         }
 
         public static ResultModel ErrorResult(string message)
         {
-            return new ResultModel { Success = false, Message = message };
+            return new ResultModel { Status = false, Message = message };
         }
 
     }

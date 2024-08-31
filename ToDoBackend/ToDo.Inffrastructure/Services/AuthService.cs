@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -9,6 +11,7 @@ using ToDo.Application.Common.ResponseModels;
 using ToDo.Application.Constants;
 using ToDo.Application.Dtos;
 using ToDo.Application.Interface;
+using ToDo.Application.Options;
 using ToDo.Domain.Models;
 using ToDo.Persistenece.Data;
 
@@ -19,13 +22,13 @@ namespace ToDo.Inffrastructure.Services
         private readonly UserManager<AppUser> _userManager;
         private readonly SignInManager<AppUser> _signInManager;
         private readonly DataContext _dataContext;
-        private readonly IConfiguration _config;
-        public AuthService(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, IConfiguration config, DataContext dataContext)
+        private readonly JwtOptions _jwtOptions;
+        public AuthService(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, DataContext dataContext, IOptions<JwtOptions> jwtOptions)
         {
             _userManager = userManager;
-            _signInManager = signInManager;
-            _config = config;
+            _signInManager = signInManager;         
             _dataContext = dataContext;
+            _jwtOptions = jwtOptions.Value;
         }
         public async Task<ResultModel> RegisterUserAsync(RegisterUserDto registerUserDto)
         {
@@ -49,7 +52,8 @@ namespace ToDo.Inffrastructure.Services
             var newUser = new AppUser()
             {
                 Email = registerUserDto.Email,
-                UserName = registerUserDto.Username
+                UserName = registerUserDto.Username,
+                EmailConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(newUser, registerUserDto.Password);
@@ -85,26 +89,18 @@ namespace ToDo.Inffrastructure.Services
                     RefreshToken = refreshToken
                 };
 
-                var addRefreshToken = new RefreshToken
-                {
-                    Token = refreshToken,
-                    ExpiresAt = DateTime.UtcNow.AddDays(7),
-                    UserId = existingUser.Id
-                };
-                 _dataContext.RefreshTokens.Add(addRefreshToken);
-                await _dataContext.SaveChangesAsync();
+                await SetRefreshToken(refreshToken,existingUser.Id);
                
-                return ResultModel<TokenModel>.SuccessResult($"User {loginUserDto.Username} logged in successfully", new TokenModel());
+                return ResultModel<TokenModel>.SuccessResult($"User {loginUserDto.Username} logged in successfully", tokenModel);
             }
-            else
-            {
+           
                 return ResultModel<TokenModel>.ErrorResult($"Failed to login user {loginUserDto.Username} ", new TokenModel());
-            }
+            
         }
 
         private async Task<string> GenerateAccessToken(AppUser user)
         {
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
             var claims = new List<Claim>
             {
@@ -119,10 +115,11 @@ namespace ToDo.Inffrastructure.Services
                 claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
-            var token = new JwtSecurityToken(_config["Jwt:Issuer"],
-                _config["Jwt:Audience"],
+            var token = new JwtSecurityToken(
+                _jwtOptions.Issuer,
+                _jwtOptions.Audience,
                 claims,
-                expires: DateTime.Now.AddMinutes(15),
+                expires: DateTime.Now.AddMinutes(_jwtOptions.TokenValidityInMinutes),
                 signingCredentials: credentials);
 
 
@@ -130,12 +127,97 @@ namespace ToDo.Inffrastructure.Services
 
         }
 
-        private static string GenerateRefreshToken()
+        private string GenerateRefreshToken()
         {
             var randomNumber = new byte[64];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
+        }
+
+        public async Task<ResultModel<TokenModel>> ValidateAndGenerateRefreshToken(TokenModel tokenModel)
+        {
+            if (tokenModel is null)
+            {
+                return ResultModel<TokenModel>.ErrorResult($"Invalid token request", new TokenModel());
+            }
+
+            string accessToken = tokenModel.AccessToken!;
+            string refreshToken = tokenModel.RefreshToken!;
+
+            var principal = GetPrincipalFromExpiredToken(accessToken);
+            if (principal == null)
+            {
+                return ResultModel<TokenModel>.ErrorResult($"Invalid access token request", new TokenModel());
+            }
+
+            string username = principal.Identity!.Name!;
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null)
+            {
+                return ResultModel<TokenModel>.ErrorResult($"User {user!.UserName} does not exist OR invalid user", new TokenModel());
+            }
+            var userRefreshToken = user.RefreshTokens.Where(x => x.IsRevoked == false && x.ExpiresAt <= DateTime.UtcNow && x.Token == refreshToken);
+            if(userRefreshToken is null)
+            {
+                return ResultModel<TokenModel>.ErrorResult($"Invalid refresh token OR refresh token does not exists", new TokenModel());
+            }
+
+            tokenModel = new TokenModel
+            {
+                AccessToken = await GenerateAccessToken(user),
+                RefreshToken = GenerateRefreshToken(),
+            };
+
+            await SetRefreshToken(tokenModel.RefreshToken, user.Id);
+
+            return ResultModel<TokenModel>.SuccessResult($"New access token and refresh token generated successfully", tokenModel);
+            
+            
+        }
+
+        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string? token)
+        {
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer = _jwtOptions.Issuer,
+                ValidAudience = _jwtOptions.Audience,
+                ValidateAudience = true,
+                ValidateIssuer = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key)),
+                ValidateLifetime = false
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
+            if (securityToken is not JwtSecurityToken jwtSecurityToken || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                return null;
+
+            return principal;
+
+        }
+
+        private async Task<bool> SetRefreshToken(string refreshToken , string userId)
+        {
+            
+            var refreshTokenList = await _dataContext.RefreshTokens.Where(x => x.UserId == userId).ToListAsync();
+
+            refreshTokenList.ForEach(x => x.IsRevoked = true);
+
+            var newRefreshToken = new RefreshToken
+            {
+                Token = refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(Convert.ToDouble(_jwtOptions.RefreshTokenValidityInDays)),
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                IsRevoked = false
+
+            };
+
+            _dataContext.RefreshTokens.Add(newRefreshToken);
+            await _dataContext.SaveChangesAsync();
+            return true;
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ToDo.Persistenece.Data;
 
@@ -11,9 +12,11 @@ using ToDo.Persistenece.Data;
 namespace ToDo.Persistenece.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20240831163108_RemovedAppUserNavigationPropertyFromRefreshToken")]
+    partial class RemovedAppUserNavigationPropertyFromRefreshToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -225,6 +228,9 @@ namespace ToDo.Persistenece.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AppUserId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -239,11 +245,11 @@ namespace ToDo.Persistenece.Migrations
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("AppUserId");
 
                     b.ToTable("RefreshTokens");
                 });
@@ -301,13 +307,9 @@ namespace ToDo.Persistenece.Migrations
 
             modelBuilder.Entity("ToDo.Domain.Models.RefreshToken", b =>
                 {
-                    b.HasOne("ToDo.Domain.Models.AppUser", "User")
+                    b.HasOne("ToDo.Domain.Models.AppUser", null)
                         .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
+                        .HasForeignKey("AppUserId");
                 });
 
             modelBuilder.Entity("ToDo.Domain.Models.AppUser", b =>

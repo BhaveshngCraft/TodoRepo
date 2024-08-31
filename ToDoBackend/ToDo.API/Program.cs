@@ -25,7 +25,9 @@ builder.Services.AddDbContext<DataContext>(x => x.UseSqlServer(connectionString)
 builder.Services.AddIdentity<AppUser, IdentityRole>()
     .AddEntityFrameworkStores<DataContext>()
     .AddDefaultTokenProviders();
+
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(nameof(AdminOptions)));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(nameof(JwtOptions)));
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options => {
