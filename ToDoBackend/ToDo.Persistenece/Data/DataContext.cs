@@ -15,5 +15,18 @@ namespace ToDo.Persistenece.Data
         {
             
         }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(rt => rt.AppUser)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(rt => rt.UserId);
+
+            base.OnModelCreating(modelBuilder);
+        }
+            
+        public DbSet<RefreshToken> RefreshTokens { get; set;}
     }
 }

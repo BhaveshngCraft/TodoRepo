@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ToDo.Application.Common;
+using ToDo.Application.Common.ResponseModels;
 using ToDo.Application.Dtos;
 
 namespace ToDo.Application.Interface

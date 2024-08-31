@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using ToDo.Application.Common;
+using ToDo.Application.Common.ResponseModels;
 using ToDo.Application.Dtos;
 using ToDo.Application.Interface;
 
